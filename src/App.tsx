@@ -2,8 +2,30 @@ import "vditor/dist/index.css";
 import React from "react";
 import Vditor from "vditor";
 
+// Refered from https://github.com/Vanessa219/vditor/blob/master/src/ts/toolbar/Fullscreen.ts
+// There seems to be no existing API for toggling fullscreen mode...
+const toggleFullScreen = (vditor: IVditor) => {
+  vditor.element.style.zIndex = vditor.options.fullscreen?.index.toString()!;
+  document.body.style.overflow = "hidden";
+  vditor.element.classList.add("vditor--fullscreen");
+  Object.keys(vditor.toolbar?.elements!).forEach((key) => {
+    const svgElement = vditor.toolbar?.elements![key].firstChild as HTMLElement;
+    if (svgElement) {
+      svgElement.className = svgElement.className.replace("__n", "__s");
+    }
+  });
+  if (vditor.counter) {
+    vditor.counter.element.className = vditor.counter.element.className.replace("__n", "__s");
+  }
+
+  if (vditor.devtools) {
+    vditor.devtools.renderEchart(vditor);
+  }
+}
+
 const App = () => {
   const [vd, setVd] = React.useState<Vditor>();
+
   React.useEffect(() => {
     const vditor = new Vditor("vditor", {
       placeholder: "Start Typing Here",
@@ -33,9 +55,6 @@ const App = () => {
         "inline-code",
         "insert-before",
         "insert-after",
-        "|",
-        "upload",
-        "record",
         "table",
         "|",
         "undo",
@@ -60,13 +79,14 @@ const App = () => {
       after: () => {
         vditor.setValue('');
         vditor.focus();
+        toggleFullScreen(vditor.vditor);
         setVd(vditor);
       },
     });
   }, []);
   return (
     <div>
-      <div id="vditor" className="vditor vditor--fullscreen" />
+      <div id="vditor" className="vditor" />
     </div>);
 };
 
