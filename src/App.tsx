@@ -1,10 +1,13 @@
 import "vditor/dist/index.css";
 import React from "react";
 import Vditor from "vditor";
+import { appWindow } from '@tauri-apps/api/window'
+import * as fs from '@tauri-apps/api/fs';
+import * as dialog from '@tauri-apps/api/dialog';
 
 // Refered from https://github.com/Vanessa219/vditor/blob/master/src/ts/toolbar/Fullscreen.ts
 // There seems to be no existing API for toggling fullscreen mode...
-const toggleFullScreen = (vditor: IVditor) => {
+const enterFullScreen = (vditor: IVditor) => {
   vditor.element.style.zIndex = vditor.options.fullscreen?.index.toString()!;
   document.body.style.overflow = "hidden";
   vditor.element.classList.add("vditor--fullscreen");
@@ -23,71 +26,146 @@ const toggleFullScreen = (vditor: IVditor) => {
   }
 }
 
+const loadFile = async (vditor: Vditor, path: string) => {
+  if (path.endsWith(".md")) {
+    const contents = await fs.readTextFile(path);
+    vditor.setValue(contents);
+  }
+}
+
+const dialogOpenOptions = {
+  directory: false,
+  multiple: false,
+  filters: [{
+    name: 'Markdown',
+    extensions: ['md'],
+  }]
+};
+
+const openFileWithDialog = async (setCurrentFile: any) => {
+  const selected = await dialog.open(dialogOpenOptions);
+  if (typeof selected === 'string') {
+    setCurrentFile(selected);
+  }
+}
+
+const registerEvents = (vd: Vditor, currentFile: string | undefined, setCurrentFile: any) => {
+  let unlistenFileDropEvent = appWindow.onFileDropEvent(async ({ payload }) => {
+    if (payload.type === 'drop') {
+      for (let path of payload.paths) {
+        if (path.endsWith(".md")) {
+          setCurrentFile(path);
+          break;
+        }
+      }
+    }
+  });
+
+  let unlistenMenuClicked = appWindow.onMenuClicked(async ({ payload: menuId }) => {
+    if (menuId === 'save') {
+      if (currentFile == undefined) {
+        let selected = await dialog.save(dialogOpenOptions);
+        fs.writeTextFile(selected, vd.getValue());
+        setCurrentFile(selected);
+      } else {
+        fs.writeTextFile(currentFile, vd.getValue());
+      }
+    }
+    if (menuId === 'open') {
+      await openFileWithDialog(setCurrentFile);
+    }
+  });
+
+  return () => {
+    (async () => {
+      (await unlistenFileDropEvent)();
+      (await unlistenMenuClicked)();
+    })();
+  };
+}
+
+const initVditor = (setVd: any) => {
+  const vditor = new Vditor("vditor", {
+    placeholder: "Start Typing Here",
+    theme: "dark",
+    preview: {
+      theme: {
+        current: "dark"
+      }
+    },
+    toolbar: [
+      "emoji",
+      "headings",
+      "bold",
+      "italic",
+      "strike",
+      "link",
+      "|",
+      "list",
+      "ordered-list",
+      "check",
+      "outdent",
+      "indent",
+      "|",
+      "quote",
+      "line",
+      "code",
+      "inline-code",
+      "insert-before",
+      "insert-after",
+      "table",
+      "|",
+      "undo",
+      "redo",
+      "|",
+      "edit-mode",
+      {
+        name: "more",
+        toolbar: [
+          "both",
+          "code-theme",
+          "content-theme",
+          "export",
+          "outline",
+          "preview",
+          "devtools",
+          "info",
+          "help",
+        ],
+      },
+    ],
+    after: () => {
+      vditor.setValue('');
+      vditor.focus();
+      enterFullScreen(vditor.vditor);
+      setVd(vditor);
+    },
+  });
+}
+
 const App = () => {
   const [vd, setVd] = React.useState<Vditor>();
+  const [currentFile, setCurrentFile] = React.useState<string>();
 
   React.useEffect(() => {
-    const vditor = new Vditor("vditor", {
-      placeholder: "Start Typing Here",
-      theme: "dark",
-      preview: {
-        theme: {
-          current: "dark"
-        }
-      },
-      toolbar: [
-        "emoji",
-        "headings",
-        "bold",
-        "italic",
-        "strike",
-        "link",
-        "|",
-        "list",
-        "ordered-list",
-        "check",
-        "outdent",
-        "indent",
-        "|",
-        "quote",
-        "line",
-        "code",
-        "inline-code",
-        "insert-before",
-        "insert-after",
-        "table",
-        "|",
-        "undo",
-        "redo",
-        "|",
-        "edit-mode",
-        {
-          name: "more",
-          toolbar: [
-            "both",
-            "code-theme",
-            "content-theme",
-            "export",
-            "outline",
-            "preview",
-            "devtools",
-            "info",
-            "help",
-          ],
-        },
-      ],
-      after: () => {
-        vditor.setValue('');
-        vditor.focus();
-        toggleFullScreen(vditor.vditor);
-        setVd(vditor);
-      },
-    });
+    initVditor(setVd);
   }, []);
-  return (
-    <div>
-      <div id="vditor" className="vditor" />
-    </div>);
+
+  React.useEffect(() => {
+    if (vd === undefined) {
+      return;
+    }
+    return registerEvents(vd, currentFile, setCurrentFile);
+  });
+
+  React.useEffect(() => {
+    if (vd === undefined || currentFile === undefined) {
+      return;
+    }
+    loadFile(vd, currentFile);
+  });
+
+  return <div id="vditor" className="vditor" />;
 };
 
 export default App;
