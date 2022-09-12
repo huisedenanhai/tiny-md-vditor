@@ -4,6 +4,8 @@ import Vditor from "vditor";
 import { appWindow } from '@tauri-apps/api/window'
 import * as fs from '@tauri-apps/api/fs';
 import * as dialog from '@tauri-apps/api/dialog';
+import { appDir, join } from "@tauri-apps/api/path";
+import { convertFileSrc } from "@tauri-apps/api/tauri";
 
 // Refered from https://github.com/Vanessa219/vditor/blob/master/src/ts/toolbar/Fullscreen.ts
 // There seems to be no existing API for toggling fullscreen mode...
@@ -86,12 +88,17 @@ const registerEvents = (vd: Vditor, currentFile: string | undefined, setCurrentF
 
 const initVditor = (setVd: any) => {
   const vditor = new Vditor("vditor", {
-    placeholder: "Start Typing Here",
+    placeholder: "Start Typing Here...",
     theme: "dark",
+    cdn: '',
     preview: {
       theme: {
-        current: "dark"
-      }
+        current: "dark",
+        path: '/dist/css/content-theme'
+      },
+      hljs: {
+        style: "dracula"
+      },
     },
     toolbar: [
       "emoji",
