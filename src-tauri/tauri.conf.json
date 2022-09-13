@@ -66,6 +66,16 @@
         "title": "tiny-md-vditor",
         "width": 800
       }
-    ]
+    ],
+    "cli": {
+      "description": "A tiny markdown editor",
+      "args": [
+        {
+          "name": "filename",
+          "index": 1,
+          "takesValue": true
+        }
+      ]
+    }
   }
 }

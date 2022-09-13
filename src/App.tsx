@@ -1,11 +1,12 @@
 import 'vditor/dist/index.css';
 import React from 'react';
 import Vditor from 'vditor';
-import { appWindow } from '@tauri-apps/api/window'
+import { appWindow, WindowManager } from '@tauri-apps/api/window'
 import * as fs from '@tauri-apps/api/fs';
 import * as dialog from '@tauri-apps/api/dialog';
-import { dirname } from '@tauri-apps/api/path';
+import { dirname, basename } from '@tauri-apps/api/path';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
+import { getMatches } from '@tauri-apps/api/cli';
 
 // Refered from https://github.com/Vanessa219/vditor/blob/master/src/ts/toolbar/Fullscreen.ts
 // There seems to be no existing API for toggling fullscreen mode...
@@ -32,6 +33,7 @@ const loadFile = async (vditor: Vditor, path: string) => {
   if (path.endsWith('.md')) {
     const contents = await fs.readTextFile(path);
     vditor.setValue(contents);
+    await appWindow.setTitle(await basename(path));
   }
 }
 
@@ -148,8 +150,8 @@ const initVditor = async (setVd: any, currentFile: string | undefined, firstTime
     after: () => {
       if (firstTimeLoad && currentFile === undefined) {
         vditor.setValue('');
-      } else {
-        loadFile(vditor, currentFile ?? '');
+      } else if (currentFile !== undefined) {
+        loadFile(vditor, currentFile);
       }
       vditor.focus();
       enterFullScreen(vditor.vditor);
@@ -161,6 +163,20 @@ const initVditor = async (setVd: any, currentFile: string | undefined, firstTime
 const App = () => {
   const [vd, setVd] = React.useState<Vditor>();
   const [currentFile, setCurrentFile] = React.useState<string>();
+
+  React.useEffect(() => {
+    getMatches().then(
+      (matches) => {
+        let filename = matches.args.filename.value;
+        if (Array.isArray(filename)) {
+          filename = filename[0];
+        }
+        if (typeof filename === 'string' && filename.endsWith(".md")) {
+          setCurrentFile(filename);
+        }
+      }
+    )
+  }, []);
 
   React.useEffect(() => {
     initVditor(setVd, currentFile, vd === undefined);
